@@ -6,6 +6,7 @@ import java.util.List;
 public class Lexer {
     private final String input;
     private int pos = 0;
+    private int parenthesisBalance = 0; // Для проверки (())
 
     public Lexer(String input) {
         this.input = input;
@@ -13,7 +14,8 @@ public class Lexer {
 
     public List<Token> tokenize() {
         List<Token> tokens = new ArrayList<>();
-        Token.GroupsType lastType = null;
+        Token.GroupsType lastGroup = null;
+        Token.Type lastType = null;
 
         while (pos < input.length()) {
             char c = input.charAt(pos);
@@ -23,78 +25,89 @@ public class Lexer {
                 continue;
             }
 
-            Token.GroupsType currentType = null;
-            Token newToken = null;
+            Token newToken;
+            Token.GroupsType currentGroup;
 
             if (Character.isDigit(c)) {
                 newToken = readNumber();
-                currentType = Token.GroupsType.NUMBER;
-            } else if (Character.isLetter(c)) {
+                currentGroup = Token.GroupsType.NUMBER;
+            }
+            else if (Character.isLetter(c)) {
                 newToken = readVariable();
-                currentType = Token.GroupsType.VARIABLE;
-            } else if (c == '+') {
-                newToken = new Token(Token.Type.PLUS, "+");
-                currentType = Token.GroupsType.SIGN;
-                pos++;
-            } else if (c == '-') {
-                newToken = new Token(Token.Type.MINUS, "-");
-                currentType = Token.GroupsType.SIGN;
-                pos++;
-            } else if (c == '*') {
-                newToken = new Token(Token.Type.MULTIPLY, "*");
-                currentType = Token.GroupsType.SIGN;
-                pos++;
-            } else if (c == '/') {
-                newToken = new Token(Token.Type.DIVIDE, "/");
-                currentType = Token.GroupsType.SIGN;
-                pos++;
-            } else if (c == '(') {
-                newToken = new Token(Token.Type.LPAREN, "(");
-                currentType = Token.GroupsType.PAREN;
-                pos++;
-            } else if (c == ')') {
-                newToken = new Token(Token.Type.RPAREN, ")");
-                currentType = Token.GroupsType.PAREN;
-                pos++;
-            } else {
-                throw new RuntimeException("Unexpected symbol: " + c);
+                currentGroup = Token.GroupsType.VARIABLE;
             }
 
-            checkSyntax(lastType, currentType, newToken, tokens.isEmpty());
+            else {
+                switch (c) {
+                    case '+': newToken = new Token(Token.Type.PLUS, "+"); currentGroup = Token.GroupsType.SIGN; break;
+                    case '-': newToken = new Token(Token.Type.MINUS, "-"); currentGroup = Token.GroupsType.SIGN; break;
+                    case '*': newToken = new Token(Token.Type.MULTIPLY, "*"); currentGroup = Token.GroupsType.SIGN; break;
+                    case '/': newToken = new Token(Token.Type.DIVIDE, "/"); currentGroup = Token.GroupsType.SIGN; break;
+                    case '(': newToken = new Token(Token.Type.LPAREN, "("); currentGroup = Token.GroupsType.PAREN; break;
+                    case ')': newToken = new Token(Token.Type.RPAREN, ")"); currentGroup = Token.GroupsType.PAREN; break;
+                    default:
+                        throw new RuntimeException("Unexpected symbol: " + c);
+                }
+                pos++;
+            }
+
+            updateBalance(newToken.type);
+            checkSyntax(lastGroup, lastType, currentGroup, newToken, tokens.isEmpty());
 
             tokens.add(newToken);
-            lastType = currentType;
+            lastGroup = currentGroup;
+            lastType = newToken.type;
         }
 
-        if (lastType == Token.GroupsType.SIGN) {
-            throw new IllegalArgumentException("Error: expression cannot end with a sign");
+        if (lastGroup == Token.GroupsType.SIGN) {
+            throw new IllegalArgumentException("Error: expression cannot end with an operator");
+        }
+        if (parenthesisBalance != 0) {
+            throw new IllegalArgumentException("Error: unbalanced parentheses! (Count: " + parenthesisBalance + ")");
         }
 
         return tokens;
     }
 
-    private void checkSyntax(Token.GroupsType lastType, Token.GroupsType currentType, Token currentToken, boolean isFirst) {
-        if (isFirst && currentType == Token.GroupsType.SIGN) {
-            if (currentToken.type != Token.Type.MINUS) {
-                throw new IllegalArgumentException("Error: expression cannot start with " + currentToken.value);
+    private void updateBalance(Token.Type type) {
+        if (type == Token.Type.LPAREN) parenthesisBalance++;
+        if (type == Token.Type.RPAREN) {
+            parenthesisBalance--;
+            if (parenthesisBalance < 0) {
+                throw new IllegalArgumentException("Error: closing parenthesis without opening one");
             }
         }
+    }
 
-        if (lastType != null) {
-            if (lastType == Token.GroupsType.SIGN && currentType == Token.GroupsType.SIGN) {
-                throw new IllegalArgumentException("Error: double signs");
+    private void checkSyntax(Token.GroupsType lastGroup, Token.Type lastType,
+                             Token.GroupsType currentGroup, Token currentToken, boolean isFirst) {
+
+        if (isFirst && currentGroup == Token.GroupsType.SIGN && currentToken.type != Token.Type.MINUS) {
+            throw new IllegalArgumentException("Error: expression cannot start with " + currentToken.value);
+        }
+
+        if (lastGroup != null) {
+            if (lastGroup == Token.GroupsType.SIGN && currentGroup == Token.GroupsType.SIGN) {
+                throw new IllegalArgumentException("Error: double operators near " + currentToken.value);
             }
 
-            if ((lastType == Token.GroupsType.NUMBER || lastType == Token.GroupsType.VARIABLE) &&
-                    (currentType == Token.GroupsType.NUMBER || currentType == Token.GroupsType.VARIABLE)) {
+            boolean isLastOperand = (lastGroup == Token.GroupsType.NUMBER || lastGroup == Token.GroupsType.VARIABLE);
+            boolean isCurrentOperand = (currentGroup == Token.GroupsType.NUMBER || currentGroup == Token.GroupsType.VARIABLE);
+            if (isLastOperand && isCurrentOperand) {
                 throw new IllegalArgumentException("Error: missing operator between operands");
             }
 
-            if (lastType == Token.GroupsType.SIGN && currentToken.type == Token.Type.RPAREN) {
-                throw new IllegalArgumentException("Error: sign before closing parenthesis");
+            if (lastType == Token.Type.LPAREN && currentToken.type == Token.Type.RPAREN) {
+                throw new IllegalArgumentException("Error: empty parentheses ()");
             }
 
-            if (lastType == Token.GroupsType.PAREN && (currentType == Token.GroupsType.NUMBER || currentType == Token.GroupsType.VARIABLE)) {
+            if (lastType == Token.Type.LPAREN && currentGroup == Token.GroupsType.SIGN && currentToken.type != Token.Type.MINUS) {
+                throw new IllegalArgumentException("Error: unexpected operator after '(': " + currentToken.value);
+            }
+
+            // Ошибка: знак перед закрывающей скобкой (напр. "5+)")
+            if (lastGroup == Token.GroupsType.SIGN && currentToken.type == Token.Type.RPAREN) {
+                throw new IllegalArgumentException("Error: operator before ')': " + currentToken.value);
             }
         }
     }
