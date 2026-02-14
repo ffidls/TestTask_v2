@@ -105,7 +105,6 @@ public class Lexer {
                 throw new IllegalArgumentException("Error: unexpected operator after '(': " + currentToken.value);
             }
 
-            // Ошибка: знак перед закрывающей скобкой (напр. "5+)")
             if (lastGroup == Token.GroupsType.SIGN && currentToken.type == Token.Type.RPAREN) {
                 throw new IllegalArgumentException("Error: operator before ')': " + currentToken.value);
             }
