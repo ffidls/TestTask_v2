@@ -1,27 +1,117 @@
-import lexer.Token;
-import tree.Node;
-import tree.IntegerNode;
-import tree.VariableNode;
-
 import lexer.Lexer;
+import lexer.Token;
+import parser.Parser;
+import tree.Node;
 
-public static void main(String[] args) {
+import java.util.*;
 
-    Map<String, Integer> myVars = new HashMap<>();
-    myVars.put("x", 5);
+public class Main {
+    private static Node root = null;
+    private static Map<String, Integer> variables = new HashMap<>();
+    private static final Random random = new Random();
 
-    Node num = new IntegerNode(10);
-    Node var = new VariableNode("x");
 
-    Lexer lexer = new Lexer("4 + 5 + x - (8 + x2)");
-    List<Token> tokens = lexer.tokenize();
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
 
-    String s = "d";
-    System.out.println(tokens.get(3).type);
+        System.out.println("Enter expression (example: (12 + x) * 23 + y):");
+        String expression = scanner.nextLine().trim();
 
-    // Node sum = new AddNode(num, var);
-    // System.out.println("result 10 + x: " + sum.evaluate(myVars));
+        try {
+            Lexer lexer = new Lexer(expression);
+            List<Token> tokens = lexer.tokenize();
+            Parser parser = new Parser(tokens);
+            root = parser.parse();
 
-    //System.out.println("tree:");
-    // sum.print("");
+            for (Token t : tokens) {
+                if (t.type == Token.Type.VARIABLE && !variables.containsKey(t.value)) {
+                    variables.put(t.value, random.nextInt(65536));
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("ERROR: " + e.getMessage());
+            return;
+        }
+
+        System.out.println("\nRandom init + first calculation:");
+        printCurrentState();
+
+        System.out.println("\nCommands:");
+        System.out.println("  print          - print AST");
+        System.out.println("  calc           - calculate expression");
+        System.out.println("  vars           - show variables");
+        System.out.println("  x = 20         - set variable value");
+        System.out.println("  exit           - quit");
+
+        while (true) {
+            System.out.print("\n> ");
+            String line = scanner.nextLine().trim();
+
+            if (line.equalsIgnoreCase("exit")) {
+                break;
+            }
+
+            if (line.isEmpty()) continue;
+
+            if (line.equalsIgnoreCase("print")) {
+                System.out.println("Abstract Syntax Tree:");
+                root.print("");
+                continue;
+            }
+
+            if (line.equalsIgnoreCase("calc")) {
+                printCurrentState();
+                continue;
+            }
+
+            if (line.equalsIgnoreCase("vars")) {
+                System.out.println("Current variables: " + variables);
+                continue;
+            }
+
+            if (line.contains("=")) {
+                handleAssignment(line);
+                continue;
+            }
+
+            System.out.println("ERROR: unknown command");
+        }
+    }
+
+    private static void handleAssignment(String line) {
+        String[] parts = line.split("=");
+        if (parts.length != 2) {
+            System.out.println("ERROR: use format: x = 20");
+            return;
+        }
+
+        String name = parts[0].trim();
+        String valueStr = parts[1].trim();
+
+        if (!name.matches("[A-Za-z][A-Za-z0-9]*")) {
+            System.out.println("ERROR: invalid variable name");
+            return;
+        }
+
+        try {
+            int value = Integer.parseInt(valueStr);
+            if (value < -32768 || value > 65535) {
+                System.out.println("WARNING: value exceeds 16-bit range");
+            }
+            variables.put(name, value);
+            System.out.println(name + " = " + value);
+        } catch (NumberFormatException e) {
+            System.out.println("ERROR: invalid integer value");
+        }
+    }
+
+    private static void printCurrentState() {
+        try {
+            System.out.println("Variables: " + variables);
+            int result = root.evaluate(variables);
+            System.out.println("Result: " + result);
+        } catch (Exception e) {
+            System.out.println("ERROR during calculation: " + e.getMessage());
+        }
+    }
 }
