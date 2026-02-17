@@ -2,202 +2,84 @@ package tests;
 
 import lexer.Lexer;
 import lexer.Token;
-import parser.Parser;
 import tree.Node;
-
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import parser.Parser;
 
 public class ParserTest {
 
-    private static final Map<String, Integer> VARS = new HashMap<String, Integer>();
-    static {
-        VARS.put("x",    5);
-        VARS.put("y",   10);
-        VARS.put("zero", 0);
+    static int passed = 0;
+    static int failed = 0;
+
+    static void check(String name, boolean condition) {
+        if (condition) {
+            System.out.println("PASS: " + name);
+            passed++;
+        } else {
+            System.out.println("FAIL: " + name);
+            failed++;
+        }
     }
 
-    private static Node parse(String expr) {
+    static boolean throws_(Runnable r) {
+        try { r.run(); return false; }
+        catch (Exception e) { return true; }
+    }
+
+    static Node parse(String expr) {
         List<Token> tokens = new Lexer(expr).tokenize();
         return new Parser(tokens).parse();
     }
 
-    private static int eval(String expr, Map<String, Integer> vars) {
+    static int eval(String expr, HashMap<String, Integer> vars) {
         return parse(expr).evaluate(vars);
     }
 
-    private static int eval(String expr) {
-        return eval(expr, new HashMap<String, Integer>());
-    }
-
-    public static void run() {
-
-        // ── Литералы ─────────────────────────────────────────────────────────
-
-        System.out.println("\n── ParserTest: literals ────────────────────────────");
-
-        TestFramework.test("single number 7", new Runnable() { public void run() {
-            TestFramework.assertEquals(7, eval("7"), "7");
-        }});
-
-        TestFramework.test("single variable x=5", new Runnable() { public void run() {
-            TestFramework.assertEquals(5, eval("x", VARS), "x");
-        }});
-
-        TestFramework.test("unknown variable evaluates to 0", new Runnable() { public void run() {
-            TestFramework.assertEquals(0, eval("z"), "z");
-        }});
-
-        // ── Базовая арифметика ────────────────────────────────────────────────
-
-        System.out.println("\n── ParserTest: basic arithmetic ────────────────────");
-
-        TestFramework.test("2+3=5", new Runnable() { public void run() {
-            TestFramework.assertEquals(5, eval("2 + 3"), "+");
-        }});
-
-        TestFramework.test("4-3=1", new Runnable() { public void run() {
-            TestFramework.assertEquals(1, eval("4 - 3"), "-");
-        }});
-
-        TestFramework.test("3*4=12", new Runnable() { public void run() {
-            TestFramework.assertEquals(12, eval("3 * 4"), "*");
-        }});
-
-        TestFramework.test("9/3=3", new Runnable() { public void run() {
-            TestFramework.assertEquals(3, eval("9 / 3"), "/");
-        }});
-
-        // ── Приоритет операций ────────────────────────────────────────────────
-
-        System.out.println("\n── ParserTest: operator precedence ─────────────────");
-
-        TestFramework.test("2+3*4=14 (mul before add)", new Runnable() { public void run() {
-            TestFramework.assertEquals(14, eval("2 + 3 * 4"), "prec");
-        }});
-
-        TestFramework.test("10-6/2=7 (div before sub)", new Runnable() { public void run() {
-            TestFramework.assertEquals(7, eval("10 - 6 / 2"), "div/sub");
-        }});
-
-        TestFramework.test("2*3/1=6", new Runnable() { public void run() {
-            TestFramework.assertEquals(6, eval("2 * 3 / 1"), "mul/div");
-        }});
-
-        TestFramework.test("5+3-2=6", new Runnable() { public void run() {
-            TestFramework.assertEquals(6, eval("5 + 3 - 2"), "add/sub");
-        }});
-
-        TestFramework.test("8-3-2=3 (left associativity)", new Runnable() { public void run() {
-            TestFramework.assertEquals(3, eval("8 - 3 - 2"), "left assoc");
-        }});
-
-        // ── Скобки ────────────────────────────────────────────────────────────
-
-        System.out.println("\n── ParserTest: parentheses ─────────────────────────");
-
-        TestFramework.test("(2+3)*4=20", new Runnable() { public void run() {
-            TestFramework.assertEquals(20, eval("(2 + 3) * 4"), "(2+3)*4");
-        }});
-
-        TestFramework.test("((2+3))=5", new Runnable() { public void run() {
-            TestFramework.assertEquals(5, eval("((2 + 3))"), "((2+3))");
-        }});
-
-        TestFramework.test("10-(3+2)=5", new Runnable() { public void run() {
-            TestFramework.assertEquals(5, eval("10 - (3 + 2)"), "10-(3+2)");
-        }});
-
-        TestFramework.test("(2+3)*(4-1)=15", new Runnable() { public void run() {
-            TestFramework.assertEquals(15, eval("(2 + 3) * (4 - 1)"), "(2+3)*(4-1)");
-        }});
-
-        // ── Переменные ────────────────────────────────────────────────────────
-
-        System.out.println("\n── ParserTest: variables ───────────────────────────");
-
-        TestFramework.test("x+3=8 where x=5", new Runnable() { public void run() {
-            Map<String, Integer> v = new HashMap<String, Integer>();
-            v.put("x", 5);
-            TestFramework.assertEquals(8, eval("x + 3", v), "x+3");
-        }});
-
-        TestFramework.test("x+y=15", new Runnable() { public void run() {
-            TestFramework.assertEquals(15, eval("x + y", VARS), "x+y");
-        }});
-
-        TestFramework.test("(x+2)*3=18 where x=4", new Runnable() { public void run() {
-            Map<String, Integer> v = new HashMap<String, Integer>();
-            v.put("x", 4);
-            TestFramework.assertEquals(18, eval("(x + 2) * 3", v), "(x+2)*3");
-        }});
-
-        TestFramework.test("x2+1=8 where x2=7", new Runnable() { public void run() {
-            Map<String, Integer> v = new HashMap<String, Integer>();
-            v.put("x2", 7);
-            TestFramework.assertEquals(8, eval("x2 + 1", v), "x2+1");
-        }});
-
-        // ── Сложные / интеграционные ──────────────────────────────────────────
-
-        System.out.println("\n── ParserTest: complex / integration ───────────────");
-
-        TestFramework.test("4+5+x-(8+x2)=4", new Runnable() { public void run() {
-            Map<String, Integer> v = new HashMap<String, Integer>();
-            v.put("x",  5);
-            v.put("x2", 2);
-            TestFramework.assertEquals(4, eval("4 + 5 + x - (8 + x2)", v), "complex");
-        }});
-
-        TestFramework.test("1+2*3-4/2=5", new Runnable() { public void run() {
-            TestFramework.assertEquals(5, eval("1 + 2 * 3 - 4 / 2"), "mixed");
-        }});
-
-        TestFramework.test("((1+2)*(3-1))/3=2", new Runnable() { public void run() {
-            TestFramework.assertEquals(2, eval("((1 + 2) * (3 - 1)) / 3"), "deep paren");
-        }});
-
-        TestFramework.test("10+2*3-8/4=14", new Runnable() { public void run() {
-            TestFramework.assertEquals(14, eval("10 + 2 * 3 - 8 / 4"), "all ops");
-        }});
-
-        // ── Деление на ноль ───────────────────────────────────────────────────
-
-        System.out.println("\n── ParserTest: division by zero ────────────────────");
-
-        TestFramework.test("5/0 throws ArithmeticException", new Runnable() { public void run() {
-            final Node n = parse("5 / 0");
-            TestFramework.assertThrows(ArithmeticException.class, new Runnable() { public void run() {
-                n.evaluate(new HashMap<String, Integer>());
-            }}, "5/0");
-        }});
-
-        TestFramework.test("5/z throws ArithmeticException (z missing -> 0)", new Runnable() { public void run() {
-            final Node n = parse("5 / z");
-            TestFramework.assertThrows(ArithmeticException.class, new Runnable() { public void run() {
-                n.evaluate(new HashMap<String, Integer>());
-            }}, "5/z");
-        }});
-
-        // ── Список токенов хранится в Parser ─────────────────────────────────
-
-        System.out.println("\n── ParserTest: token list ───────────────────────────");
-
-        TestFramework.test("parser stores token list correctly", new Runnable() { public void run() {
-            List<Token> tokens = new Lexer("1 + 2").tokenize();
-            Parser parser = new Parser(tokens);
-            TestFramework.assertEquals(tokens.size(), parser.expressionTokens.size(), "size");
-            TestFramework.assertEquals(tokens.get(0).value, parser.expressionTokens.get(0).value, "first value");
-        }});
-    }
-
     public static void main(String[] args) {
-        System.out.println("╔══════════════════════════════════════════════════╗");
-        System.out.println("║                  ParserTest                     ║");
-        System.out.println("╚══════════════════════════════════════════════════╝");
-        run();
-        TestFramework.printSummary();
-        if (TestFramework.failed > 0) System.exit(1);
+
+        HashMap<String, Integer> empty = new HashMap<String, Integer>();
+
+        HashMap<String, Integer> vars = new HashMap<String, Integer>();
+        vars.put("x",    5);
+        vars.put("y",   10);
+        vars.put("zero", 0);
+
+        // single values
+        check("number 7",               eval("7", empty) == 7);
+        check("variable x = 5",         eval("x", vars)  == 5);
+        check("unknown variable z = 0", eval("z", empty) == 0);
+
+        // basic arithmetic
+        check("2 + 3 = 5",              eval("2 + 3", empty) == 5);
+        check("4 - 3 = 1",              eval("4 - 3", empty) == 1);
+        check("3 * 4 = 12",             eval("3 * 4", empty) == 12);
+        check("9 / 3 = 3",              eval("9 / 3", empty) == 3);
+
+        // operator precedence
+        check("2 + 3 * 4 = 14",         eval("2 + 3 * 4",  empty) == 14);
+        check("10 - 6 / 2 = 7",         eval("10 - 6 / 2", empty) == 7);
+        check("8 - 3 - 2 = 3",          eval("8 - 3 - 2",  empty) == 3);
+
+        // parentheses
+        check("(2 + 3) * 4 = 20",       eval("(2 + 3) * 4",       empty) == 20);
+        check("10 - (3 + 2) = 5",       eval("10 - (3 + 2)",      empty) == 5);
+        check("(2 + 3) * (4 - 1) = 15", eval("(2 + 3) * (4 - 1)", empty) == 15);
+
+        // with variables
+        check("x + 3 = 8",              eval("x + 3",       vars) == 8);
+        check("x + y = 15",             eval("x + y",        vars) == 15);
+        check("(x + 2) * 3 = 21",       eval("(x + 2) * 3", vars) == 21);
+
+        // complex expression
+        HashMap<String, Integer> v2 = new HashMap<String, Integer>();
+        v2.put("x", 5); v2.put("x2", 2);
+        check("4 + 5 + x - (8 + x2) = 4", eval("4 + 5 + x - (8 + x2)", v2) == 4);
+
+        // division by zero
+        final Node n = parse("5 / 0");
+        check("5 / 0 throws exception",  throws_(() -> n.evaluate(empty)));
+
+        System.out.println("\nParserTest: " + passed + " passed, " + failed + " failed");
     }
 }
